@@ -104,6 +104,18 @@ function safe_string_value(string $v): bool {
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+// Basic authentication is cached by browsers and is therefore sent on a
+// cross-site HTML form POST. Require a non-simple request header for writes:
+// browsers preflight this header cross-origin and Caddy deliberately sends no
+// CORS permission, while the first-party frontend supplies it explicitly.
+function require_admin_request_header(): void {
+    if (($_SERVER['HTTP_X_AVIAN_ADMIN'] ?? '') !== '1') {
+        http_response_code(403);
+        echo json_encode(['error' => 'admin request header required']);
+        exit;
+    }
+}
+
 if ($method === 'GET') {
     $conf = read_conf($CONF_PATH);
     $out = [];
@@ -123,6 +135,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    require_admin_request_header();
     $raw = file_get_contents('php://input');
     $body = json_decode((string)$raw, true);
     if (!is_array($body)) {

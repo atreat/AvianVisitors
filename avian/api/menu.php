@@ -25,8 +25,8 @@ if (getenv('AV_REQUIRE_AUTH') === '1' && empty($_SERVER['HTTP_AUTHORIZATION'])) 
 
 // All four items are in-app overlays. `native: true` tells the FE to
 // route via `#admin=<section>` rather than opening a new window. We
-// deliberately don't link out to BirdNET-Pi's stock pages - those stay
-// reachable at /index.php, and the github link lives in the drawer
+// deliberately don't link out to BirdNET-Pi's stock pages: the hardened
+// Caddy configuration disables them, and the github link lives in the drawer
 // footer next to "built by teddy".
 echo json_encode([
     'items' => [

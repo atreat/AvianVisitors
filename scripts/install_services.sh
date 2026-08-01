@@ -73,9 +73,8 @@ create_necessary_dirs() {
   # reachable at /avian/. The five frontend files at the EXTRACTED root
   # make the collage the default index for http://birdnet.local/ -
   # the matching try_files override in update_caddyfile.sh teaches
-  # php_fastcgi to prefer index.html over index.php at the root. The
-  # stock BirdNET-Pi UI stays reachable at http://birdnet.local/index.php
-  # for anyone who wants to drop into the legacy admin pages.
+  # php_fastcgi to prefer index.html over index.php at the root. The hardened
+  # Caddy configuration disables the legacy BirdNET-Pi admin pages entirely.
   if [ -d $my_dir/avian ]; then
     sudo -u ${USER} ln -fs $my_dir/avian ${EXTRACTED}/avian
     sudo -u ${USER} ln -fs $my_dir/avian/frontend/index.html ${EXTRACTED}/index.html
@@ -363,16 +362,10 @@ configure_caddy_php() {
   echo "Configuring PHP for Caddy"
   sed -i 's/www-data/caddy/g' /etc/php/*/fpm/pool.d/www.conf
   systemctl restart php\*-fpm.service
-  echo "Adding Caddy sudoers rule"
-  cat << EOF > /etc/sudoers.d/010_caddy-nopasswd
-caddy ALL=(ALL) NOPASSWD: ALL
-EOF
-  chmod 0440 /etc/sudoers.d/010_caddy-nopasswd
-  # AvianVisitors admin overlay needs to restart whitelisted units and
-  # tail their journal. The 010 rule above already covers everything via
-  # NOPASSWD: ALL - this 020 rule pins the exact commands we depend on
-  # so the admin overlay stays working even if a future upstream change
-  # tightens 010. See SECURITY.md for the longer story.
+  # PHP-FPM runs as caddy. Never grant a network-facing account unrestricted
+  # sudo: the AvianVisitors admin needs only these explicit service and log
+  # operations. Remove the legacy upstream rule when upgrading an install.
+  rm -f /etc/sudoers.d/010_caddy-nopasswd
   if [ -d $my_dir/avian ]; then
     echo "Adding AvianVisitors admin allowlist"
     cat << EOF > /etc/sudoers.d/020_avian-admin
@@ -385,6 +378,9 @@ caddy ALL=(root) NOPASSWD: \\
     /bin/systemctl restart livestream, \\
     /bin/systemctl restart icecast2, \\
     /bin/systemctl restart caddy, \\
+    /bin/systemctl restart php8.4-fpm, \\
+    /bin/systemctl restart php8.3-fpm, \\
+    /bin/systemctl restart php8.2-fpm, \\
     /bin/journalctl -u birdnet_recording *, \\
     /bin/journalctl -u birdnet_analysis *, \\
     /bin/journalctl -u birdnet_log *, \\

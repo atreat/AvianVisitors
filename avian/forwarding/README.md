@@ -1,6 +1,9 @@
 # Forwarding
 
-Default install hosts the collage at `http://birdnet.local/` on your LAN, no auth. The recipes below are independent. Pick what you need.
+Default install hosts the collage at `http://birdnet.local/`. Before using any
+forwarding recipe, set `CADDY_PWD` and regenerate Caddy as described in the
+[security hardening guide](../../docs/security.md). The public collage remains
+available, while its controls require that password.
 
 ---
 
@@ -26,7 +29,9 @@ sudo cloudflared service install
 sudo systemctl restart cloudflared
 ```
 
-Add a password gate via Cloudflare Access (free for up to 50 users) or via Caddy basic_auth ([`caddy-auth.caddy`](caddy-auth.caddy)).
+Add a Cloudflare Access policy (free for up to 50 users). This is a second
+authentication layer for the public hostname; it does not replace the local
+Caddy admin password.
 
 ---
 

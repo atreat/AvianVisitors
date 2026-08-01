@@ -52,7 +52,13 @@ curl -s https://raw.githubusercontent.com/Twarner491/AvianVisitors/avian-visitor
 
 Clones this fork, installs BirdNET-Pi, symlinks the AvianVisitors overlay into the Caddy web root. Takes 20-40 minutes. Reboots when done.
 
-Collage: `http://birdnet.local/`. Stock BirdNET-Pi UI: `http://birdnet.local/index.php`. The menu button in the top right opens an admin overlay with settings, system, log, and tool panels.
+Collage: `http://birdnet.local/`. The menu button in the top right opens the
+password-protected admin overlay with settings, system, log, and tool panels.
+The legacy BirdNET-Pi web interface is disabled by the hardened configuration.
+
+Before enabling any forwarding, set an admin password and regenerate Caddy.
+The collage remains public, but its admin controls and stream require the
+`birdnet` account password. See [security hardening](docs/security.md).
 
 ---
 

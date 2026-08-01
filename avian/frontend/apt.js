@@ -1466,6 +1466,18 @@
   var locked = document.getElementById('dd-locked');
   var items = document.getElementById('dd-items');
   var lockHint = document.getElementById('lockHint');
+  // Kept in memory only for this tab. Do not use localStorage or cookies for
+  // a Basic-auth password; a reload intentionally asks the administrator to
+  // authenticate again.
+  var adminAuthHeader = null;
+  function adminFetch(url, options) {
+    options = options || {};
+    var headers = Object.assign({}, options.headers || {});
+    if (adminAuthHeader) headers.Authorization = adminAuthHeader;
+    options.headers = headers;
+    options.credentials = 'same-origin';
+    return fetch(url, options);
+  }
   function openDd() { dd.classList.add('open'); dd.setAttribute('aria-hidden', 'false'); setTimeout(function () { document.getElementById('lockPass').focus(); }, 100); }
   function closeDd() { dd.classList.remove('open'); dd.setAttribute('aria-hidden', 'true'); }
   function toggleDd() { dd.classList.contains('open') ? closeDd() : openDd(); }
@@ -1480,7 +1492,7 @@
   // request reaches PHP - so a 200 here means we're authed, a 401
   // means Caddy rejected and we need the lock-screen flow.
   function tryAutoUnlock() {
-    fetch('./avian/api/menu.php', { credentials: 'same-origin' }).then(function (r) {
+    adminFetch('./avian/api/menu.php').then(function (r) {
       if (r.status === 200) {
         return r.json().then(function (j) { renderMenu(j.items || []); });
       }
@@ -1496,16 +1508,18 @@
     var u = (window.AV_AUTH_USER || 'birdnet');
     var p = document.getElementById('lockPass').value;
     var hdr = 'Basic ' + btoa(u + ':' + p);
-    // POST to menu.php with the header so the browser caches the basic
-    // creds for every subsequent request. If Caddy basic_auth accepts
-    // them we get a 200 and the drawer renders; 401 means wrong password.
+    // Verify the password against Caddy, then retain the header only in this
+    // tab's memory for subsequent admin API requests. A reload asks again.
     fetch('./avian/api/menu.php', {
       method: 'POST',
       headers: { 'Authorization': hdr },
       credentials: 'same-origin',
     }).then(function (r) {
       if (r.status === 200) {
-        return r.json().then(function (j) { renderMenu(j.items || []); });
+        return r.json().then(function (j) {
+          adminAuthHeader = hdr;
+          renderMenu(j.items || []);
+        });
       } else if (r.status === 401) {
         lockHint.textContent = 'wrong password.';
         lockHint.classList.add('lock-err');
@@ -1739,7 +1753,7 @@
   }
 
   function loadSettings() {
-    fetch('./avian/api/config.php', { credentials: 'same-origin', cache: 'no-store' })
+    adminFetch('./avian/api/config.php', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
       .then(function (cfg) {
         var v = cfg.values || {};
@@ -1855,10 +1869,9 @@
     if (Object.keys(pending).length === 0) return;
     var body = JSON.stringify(pending);
     setSaveState('saving...');
-    fetch('./avian/api/config.php', {
+    adminFetch('./avian/api/config.php', {
       method: 'POST', body: body,
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Avian-Admin': '1' },
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
@@ -2345,12 +2358,10 @@
     if (s < 86400) return Math.round(s / 3600) + 'h';
     return Math.round(s / 86400) + 'd';
   }
-  // Admin endpoints rely on the session cookie set by /api/auth/login -
-  // no Authorization header needed (and nothing sensitive in JS-readable
-  // storage). credentials: 'same-origin' is the default but spelled out
-  // for clarity.
+  // adminFetch attaches the in-memory Basic-auth header after the drawer's
+  // password check. It is never persisted in local or session storage.
   function adminApi(url) {
-    return fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+    return adminFetch(url, { cache: 'no-store' });
   }
   function openAdmin(section) {
     document.body.classList.add('admin-on');
@@ -2383,7 +2394,7 @@
 
   function renderAdminSettings() {
     adminBody.innerHTML = '<p style="font:11px ui-monospace,monospace;color:var(--ink-soft);text-align:center">loading settings...</p>';
-    fetch('./avian/api/config.php', { credentials: 'same-origin', cache: 'no-store' })
+    adminFetch('./avian/api/config.php', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
       .then(function (cfg) {
         var v = cfg.values || {};
@@ -2527,8 +2538,9 @@
         var unit = b.dataset.unit;
         if (!confirm('Restart ' + unit + '?')) return;
         b.disabled = true; var old = b.textContent; b.textContent = '...';
-        fetch('./avian/api/birdnet-status.php?action=restart&unit=' + encodeURIComponent(unit), {
-          method: 'POST', credentials: 'same-origin',
+        adminFetch('./avian/api/birdnet-status.php?action=restart&unit=' + encodeURIComponent(unit), {
+          method: 'POST',
+          headers: { 'X-Avian-Admin': '1' },
         })
           .then(function (r) { return r.json(); })
           .then(function (j) {
@@ -2631,8 +2643,9 @@
         if (!confirm('restart ' + unit + '?')) return;
         b.disabled = true; var old = b.textContent; b.textContent = '...';
         var out = adminBody.querySelector('.out[data-out="' + unit.replace(/[^a-z0-9_.-]/gi, '_') + '"]');
-        fetch('./avian/api/birdnet-status.php?action=restart&unit=' + encodeURIComponent(unit), {
-          method: 'POST', credentials: 'same-origin',
+        adminFetch('./avian/api/birdnet-status.php?action=restart&unit=' + encodeURIComponent(unit), {
+          method: 'POST',
+          headers: { 'X-Avian-Admin': '1' },
         })
           .then(function (r) { return r.json(); })
           .then(function (j) {

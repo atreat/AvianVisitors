@@ -233,6 +233,17 @@ function logs_for(string $unit, int $lines): array {
     ];
 }
 
+function require_admin_request_header(): void {
+    // A non-simple header makes browser-driven cross-site POSTs preflight;
+    // this app never enables CORS, so only its same-origin frontend can send
+    // restart requests even after the browser has cached Basic credentials.
+    if (($_SERVER['HTTP_X_AVIAN_ADMIN'] ?? '') !== '1') {
+        http_response_code(403);
+        echo json_encode(['error' => 'admin request header required']);
+        exit;
+    }
+}
+
 switch ($action) {
 
     case 'system': {
@@ -275,6 +286,7 @@ switch ($action) {
             echo json_encode(['error' => 'POST required']);
             break;
         }
+        require_admin_request_header();
         $unit = (string)($_GET['unit'] ?? '');
         if (!in_array($unit, ALLOWED_UNITS, true)) {
             http_response_code(400);
