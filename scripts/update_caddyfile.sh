@@ -14,19 +14,6 @@ FPM_SOCK=${FPM_SOCK:-/run/php/php-fpm.sock}
 if [ -f /etc/caddy/Caddyfile ];then
   cp /etc/caddy/Caddyfile{,.original}
 fi
-if [ -n "${CADDY_PWD:-}" ]; then
-  HASHWORD=$(caddy hash-password --plaintext "${CADDY_PWD}")
-  # Caddy 2.8 renamed `basicauth` to `basic_auth`. The new spelling is
-  # accepted by current Caddy releases and avoids relying on the deprecated
-  # alias. All mutating/admin endpoints share this single password.
-  AUTH_BLOCK=$(printf 'basic_auth @protected {\n    birdnet %s\n  }' "${HASHWORD}")
-else
-  # A blank password must never silently leave management endpoints public.
-  # The collage remains viewable, but its drawer/admin and private media are
-  # unavailable until an administrator sets CADDY_PWD.
-  AUTH_BLOCK='respond @protected 403'
-fi
-
 cat << EOF > /etc/caddy/Caddyfile
 http:// ${BIRDNETPI_URL} {
   root * ${EXTRACTED}
@@ -34,13 +21,17 @@ http:// ${BIRDNETPI_URL} {
   # Keep the public experience to the static collage and read-only bird data.
   # The upstream BirdNET-Pi control surface includes a terminal, a file
   # manager, and database tooling; none are required by AvianVisitors.
-  @disabled path /index.php /views.php /config.php /play.php /spectrogram.php /overview.php /stats.php /todays_detections.php /history.php /weekly_report.php /scripts/* /terminal* /log* /stats* /phpsysinfo*
+  @disabled path /index.php /views.php /config.php /play.php /spectrogram.php /overview.php /stats.php /todays_detections.php /history.php /weekly_report.php /scripts/* /terminal* /log* /stats* /phpsysinfo* /avian/api/auth-session.php
   respond @disabled 404
 
-  # Password-protected routes. These include every endpoint that changes Pi
-  # configuration or services, plus direct media directories and the stream.
-  @protected path /avian/api/menu.php /avian/api/config.php /avian/api/birdnet-status.php /stream /By_Date/* /Charts/* /Processed* /Raw/*
-  ${AUTH_BLOCK}
+  # Direct media and Icecast are protected by the same server-side session as
+  # the styled admin lock. Forward-auth's 401 response is JSON, not a Basic
+  # challenge, so browsers do not display a native credential dialog.
+  @session_protected path /stream /By_Date/* /Charts/* /Processed* /Raw/*
+  forward_auth @session_protected 127.0.0.1:80 {
+    uri /avian/api/auth.php?action=verify
+  }
+  reverse_proxy /stream 127.0.0.1:8000
 
   header {
     X-Content-Type-Options "nosniff"

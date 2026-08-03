@@ -58,8 +58,8 @@ BIRDWEATHER_ID=
 #___________________user password for the Live Audio Stream,___________________#
 #_________________Tools, System Links, and the Processed files ________________#
 
-## CADDY_PWD is the plaintext password (that will be hashed) and used to access
-## certain parts of the web interface
+## CADDY_PWD is the plaintext password used by AvianVisitors' in-page admin
+## lock. It stays in this local config file and must not be committed.
 
 CADDY_PWD=
 

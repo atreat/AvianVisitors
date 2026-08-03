@@ -9,9 +9,9 @@
 //           birdnet.conf and restarts birdnet_analysis + birdnet_recording
 //           so the changes take effect immediately.
 //
-// Default LAN deploy: returns data immediately, no auth.
-// Forwarded deploy:  set AV_REQUIRE_AUTH=1 (env) AND configure Caddy
-// basic_auth on /avian/api/.
+// Every request requires the HttpOnly admin session established through
+// auth.php. This keeps the password out of browser storage and avoids native
+// HTTP Basic-auth prompts.
 //
 // Restart requires passwordless sudo for the caddy user that runs
 // php-fpm, dropped in place by install_services.sh at
@@ -19,12 +19,9 @@
 
 declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
-
-if (getenv('AV_REQUIRE_AUTH') === '1' && empty($_SERVER['HTTP_AUTHORIZATION'])) {
-    http_response_code(401);
-    echo json_encode(['error' => 'unauthorized']);
-    exit;
-}
+header('Cache-Control: no-store');
+require_once __DIR__ . '/auth-session.php';
+avian_require_admin_session();
 
 // Path layout: /home/{USER}/BirdNET-Pi/avian/api/config.php
 $BIRDNETPI_DIR = dirname(__DIR__, 2);
@@ -104,18 +101,6 @@ function safe_string_value(string $v): bool {
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-// Basic authentication is cached by browsers and is therefore sent on a
-// cross-site HTML form POST. Require a non-simple request header for writes:
-// browsers preflight this header cross-origin and Caddy deliberately sends no
-// CORS permission, while the first-party frontend supplies it explicitly.
-function require_admin_request_header(): void {
-    if (($_SERVER['HTTP_X_AVIAN_ADMIN'] ?? '') !== '1') {
-        http_response_code(403);
-        echo json_encode(['error' => 'admin request header required']);
-        exit;
-    }
-}
-
 if ($method === 'GET') {
     $conf = read_conf($CONF_PATH);
     $out = [];
@@ -135,7 +120,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    require_admin_request_header();
+    avian_require_admin_request_header();
     $raw = file_get_contents('php://input');
     $body = json_decode((string)$raw, true);
     if (!is_array($body)) {

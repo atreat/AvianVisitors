@@ -1610,7 +1610,7 @@
  *
  * Forwarded install (body.av-forwarded): show the lock row so users
  * type the basic-auth password before items unlock. Pair with
- * AV_REQUIRE_AUTH=1 in php-fpm env + Caddy basic_auth on /avian/api/.
+ * an HttpOnly session set by /avian/api/auth.php after password entry.
  * See avian/forwarding/. */
 body.av-local #dd-locked { display: none; }
 body.av-local #dd-items  { display: block; }

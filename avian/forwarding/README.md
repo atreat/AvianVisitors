@@ -3,7 +3,8 @@
 Default install hosts the collage at `http://birdnet.local/`. Before using any
 forwarding recipe, set `CADDY_PWD` and regenerate Caddy as described in the
 [security hardening guide](../../docs/security.md). The public collage remains
-available, while its controls require that password.
+available, while its controls require that password through the in-page lock
+screen.
 
 ---
 

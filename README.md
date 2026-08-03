@@ -58,7 +58,8 @@ The legacy BirdNET-Pi web interface is disabled by the hardened configuration.
 
 Before enabling any forwarding, set an admin password and regenerate Caddy.
 The collage remains public, but its admin controls and stream require the
-`birdnet` account password. See [security hardening](docs/security.md).
+configured admin password through an in-page lock screen. See
+[security hardening](docs/security.md).
 
 ---
 

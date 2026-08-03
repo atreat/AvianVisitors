@@ -10,9 +10,9 @@
 //   restart   - GET/POST &unit=<name>: restart a single service (whitelisted)
 //   diag      - everything in one go (system + services + recent logs)
 //
-// Default LAN deploy: returns data immediately, no auth.
-// Forwarded deploy:  set AV_REQUIRE_AUTH=1 (env) AND configure Caddy
-// basic_auth on /avian/api/ to gate everything.
+// Every request requires the HttpOnly admin session established through
+// auth.php. This keeps diagnostic data and service controls private without
+// invoking a browser-native Basic-auth dialog.
 //
 // Service restart + journalctl need passwordless sudo for the caddy
 // user that runs php-fpm. install_services.sh drops the matching
@@ -22,12 +22,8 @@
 declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
-
-if (getenv('AV_REQUIRE_AUTH') === '1' && empty($_SERVER['HTTP_AUTHORIZATION'])) {
-    http_response_code(401);
-    echo json_encode(['error' => 'unauthorized']);
-    exit;
-}
+require_once __DIR__ . '/auth-session.php';
+avian_require_admin_session();
 
 $action = $_GET['action'] ?? 'diag';
 
@@ -233,17 +229,6 @@ function logs_for(string $unit, int $lines): array {
     ];
 }
 
-function require_admin_request_header(): void {
-    // A non-simple header makes browser-driven cross-site POSTs preflight;
-    // this app never enables CORS, so only its same-origin frontend can send
-    // restart requests even after the browser has cached Basic credentials.
-    if (($_SERVER['HTTP_X_AVIAN_ADMIN'] ?? '') !== '1') {
-        http_response_code(403);
-        echo json_encode(['error' => 'admin request header required']);
-        exit;
-    }
-}
-
 switch ($action) {
 
     case 'system': {
@@ -286,7 +271,7 @@ switch ($action) {
             echo json_encode(['error' => 'POST required']);
             break;
         }
-        require_admin_request_header();
+        avian_require_admin_request_header();
         $unit = (string)($_GET['unit'] ?? '');
         if (!in_array($unit, ALLOWED_UNITS, true)) {
             http_response_code(400);

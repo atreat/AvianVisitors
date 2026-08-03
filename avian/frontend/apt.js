@@ -1466,15 +1466,10 @@
   var locked = document.getElementById('dd-locked');
   var items = document.getElementById('dd-items');
   var lockHint = document.getElementById('lockHint');
-  // Kept in memory only for this tab. Do not use localStorage or cookies for
-  // a Basic-auth password; a reload intentionally asks the administrator to
-  // authenticate again.
-  var adminAuthHeader = null;
+  // The server sets an HttpOnly, SameSite=Strict session cookie after login.
+  // JavaScript never stores or sees the password after submitting this form.
   function adminFetch(url, options) {
     options = options || {};
-    var headers = Object.assign({}, options.headers || {});
-    if (adminAuthHeader) headers.Authorization = adminAuthHeader;
-    options.headers = headers;
     options.credentials = 'same-origin';
     return fetch(url, options);
   }
@@ -1485,12 +1480,9 @@
   document.addEventListener('click', function (e) { if (!dd.contains(e.target) && e.target !== menuBtn) closeDd(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDd(); });
 
-  // Probe menu.php with no Authorization header. On a LAN deploy
-  // (AV_REQUIRE_AUTH=0) it returns 200 immediately so the drawer
-  // renders directly. On a forwarded deploy with Caddy basic_auth in
-  // front, Caddy will already have validated credentials before this
-  // request reaches PHP - so a 200 here means we're authed, a 401
-  // means Caddy rejected and we need the lock-screen flow.
+  // Probe the session-protected menu. An unauthenticated response is a plain
+  // JSON 401 (not an HTTP Basic challenge), so the browser never opens its
+  // native password dialog and the drawer keeps its styled lock screen.
   function tryAutoUnlock() {
     adminFetch('./avian/api/menu.php').then(function (r) {
       if (r.status === 200) {
@@ -1502,26 +1494,25 @@
 
   document.getElementById('unlockForm').addEventListener('submit', function (e) {
     e.preventDefault();
-    // BirdNET-Pi's upstream Caddyfile basicauth user is `birdnet`.
-    // If your install changed it (custom Caddyfile), set window.AV_AUTH_USER
-    // before this script loads - e.g. an inline <script> in index.html.
-    var u = (window.AV_AUTH_USER || 'birdnet');
     var p = document.getElementById('lockPass').value;
-    var hdr = 'Basic ' + btoa(u + ':' + p);
-    // Verify the password against Caddy, then retain the header only in this
-    // tab's memory for subsequent admin API requests. A reload asks again.
-    fetch('./avian/api/menu.php', {
+    lockHint.textContent = 'checking...';
+    lockHint.classList.remove('lock-err');
+    adminFetch('./avian/api/auth.php?action=login', {
       method: 'POST',
-      headers: { 'Authorization': hdr },
-      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Avian-Admin': '1' },
+      body: JSON.stringify({ password: p }),
     }).then(function (r) {
-      if (r.status === 200) {
-        return r.json().then(function (j) {
-          adminAuthHeader = hdr;
-          renderMenu(j.items || []);
+      if (r.ok) {
+        document.getElementById('lockPass').value = '';
+        return adminFetch('./avian/api/menu.php').then(function (menuRes) {
+          if (!menuRes.ok) throw new Error('menu unavailable');
+          return menuRes.json().then(function (j) { renderMenu(j.items || []); });
         });
       } else if (r.status === 401) {
         lockHint.textContent = 'wrong password.';
+        lockHint.classList.add('lock-err');
+      } else if (r.status === 503) {
+        lockHint.textContent = 'password is not configured.';
         lockHint.classList.add('lock-err');
       } else {
         lockHint.textContent = 'auth unavailable.';

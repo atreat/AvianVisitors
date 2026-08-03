@@ -1,4 +1,8 @@
-# Optional Basic-auth gate for the collage.
+# Legacy optional Basic-auth gate for the whole collage.
+#
+# AvianVisitors now uses an in-page, server-side session for its admin lock;
+# do not import this file if you want that styled password flow. Cloudflare
+# Access is the preferred additional gate for a public hostname.
 # Use only if you're NOT putting Cloudflare Access in front of the
 # public URL. Replace the bcrypt hash below - generate via:
 #   caddy hash-password --plaintext 'your-pass'

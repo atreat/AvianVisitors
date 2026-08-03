@@ -254,7 +254,7 @@ if [ "$(grep -o "#birdnet" /etc/crontab | wc -l)" -lt 6 ]; then
 fi
 
 set +x
-AUTH=$(grep basicauth /etc/caddy/Caddyfile)
+AUTH=$(grep -E 'forward_auth|basic_auth|basicauth' /etc/caddy/Caddyfile)
 [ -n "${CADDY_PWD}" ] && [ -z "${AUTH}" ] && sudo /usr/local/bin/update_caddyfile.sh > /dev/null 2>&1
 set -x
 
